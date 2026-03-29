@@ -1,0 +1,225 @@
+version: 7.10.0
+
+type: DeclarativeSource
+
+check:
+  type: CheckStream
+  stream_names:
+    - course_lesson_completed
+  concurrency_level: 1
+
+streams:
+  - type: DeclarativeStream
+    name: course_lesson_completed
+    retriever:
+      type: SimpleRetriever
+      paginator:
+        type: DefaultPaginator
+        page_token_option:
+          type: RequestOption
+          field_name: page
+          inject_into: request_parameter
+        pagination_strategy:
+          type: PageIncrement
+          start_from_page: 1
+      requester:
+        type: HttpRequester
+        url: https://app.circle.so/data_api/v1/community_events
+        http_method: GET
+        authenticator:
+          type: BearerAuthenticator
+          api_token: "{{ config['api_token'] }}"
+        error_handler:
+          type: DefaultErrorHandler
+          response_filters:
+            - type: HttpResponseFilter
+              action: RETRY
+              http_codes:
+                - 429
+                - 500
+                - 502
+                - 503
+                - 504
+        request_headers:
+          Accept: application/json
+        request_parameters:
+          sort: "{{ config.get('sort', 'oldest') }}"
+          events: courses.lesson.completed
+          per_page: "{{ config.get('per_page', 10) }}"
+          created_at_gt: "{{ config.get('start_date', '2026-01-01T00:00:00+00:00') }}"
+      record_selector:
+        type: RecordSelector
+        extractor:
+          type: DpathExtractor
+          field_path:
+            - events
+    primary_key: id
+    schema_loader:
+      type: InlineSchemaLoader
+      schema:
+        type: object
+        $schema: http://json-schema.org/schema#
+        required:
+          - id
+          - created_at
+        properties:
+          id:
+            type: string
+          name:
+            type:
+              - string
+              - "null"
+          version:
+            type:
+              - string
+              - "null"
+          created_at:
+            type: string
+          triggered_at:
+            type:
+              - string
+              - "null"
+          payload:
+            type:
+              - object
+              - "null"
+            properties:
+              initiator:
+                type:
+                  - object
+                  - "null"
+                properties:
+                  type:
+                    type:
+                      - string
+                      - "null"
+                  id:
+                    type:
+                      - number
+                      - "null"
+                  public_uid:
+                    type:
+                      - string
+                      - "null"
+                  name:
+                    type:
+                      - string
+                      - "null"
+                  first_name:
+                    type:
+                      - string
+                      - "null"
+                  last_name:
+                    type:
+                      - string
+                      - "null"
+                  email:
+                    type:
+                      - string
+                      - "null"
+                  is_admin:
+                    type:
+                      - boolean
+                      - "null"
+                  is_moderator:
+                    type:
+                      - boolean
+                      - "null"
+              lesson:
+                type:
+                  - object
+                  - "null"
+                properties:
+                  id:
+                    type:
+                      - number
+                      - "null"
+                  type:
+                    type:
+                      - string
+                      - "null"
+              space:
+                type:
+                  - object
+                  - "null"
+                properties:
+                  id:
+                    type:
+                      - number
+                      - "null"
+                  name:
+                    type:
+                      - string
+                      - "null"
+                  slug:
+                    type:
+                      - string
+                      - "null"
+                  type:
+                    type:
+                      - string
+                      - "null"
+        additionalProperties: true
+
+spec:
+  type: Spec
+  connection_specification:
+    type: object
+    title: Circle Source Spec
+    $schema: http://json-schema.org/draft-07/schema#
+    required:
+      - api_token
+    properties:
+      sort:
+        type: string
+        enum:
+          - latest
+          - oldest
+        order: 3
+        title: Sort Order
+        default: oldest
+      per_page:
+        type: integer
+        description: "Number of records to fetch per page (default: 100, max: 100)"
+        order: 2
+        title: Records Per Page
+        default: 10
+        maximum: 100
+        minimum: 1
+      api_token:
+        type: string
+        description: Circle.so API authentication token
+        order: 0
+        title: API Token
+        airbyte_secret: true
+      start_date:
+        type: string
+        description: "Only fetch events created after this date (ISO 8601 format)"
+        order: 1
+        title: Start Date
+        default: "2026-01-01T00:00:00+00:00"
+        examples:
+          - "2026-01-01T00:00:00+00:00"
+    additionalProperties: true
+
+metadata:
+  testedStreams:
+    course_lesson_completed:
+      isStale: false
+      hasRecords: true
+      streamHash: d7f692f2ec8fd029246b8ad7d29447e6d9f2ef95
+      hasResponse: true
+      primaryKeysAreUnique: false
+      primaryKeysArePresent: true
+      responsesAreSuccessful: true
+  autoImportSchema:
+    course_lesson_completed: false
+  applied_migrations:
+    - migration: HttpRequesterUrlBaseToUrl
+      to_version: "*"
+      migrated_at: "2026-02-24T04:29:33.909662+00:00"
+      from_version: 0.51.0
+    - migration: HttpRequesterPathToUrl
+      to_version: "*"
+      migrated_at: "2026-02-24T04:29:33.909912+00:00"
+      from_version: 0.51.0
